@@ -136,10 +136,11 @@ def generate_sentiment_series(
     # Generate news counts (more news on volatile days)
     price_df["abs_return"] = np.abs(price_df["close"].pct_change())
     volatility_factor = price_df["abs_return"] / price_df["abs_return"].mean()
+    volatility_factor = volatility_factor.fillna(0)  # Fill NaN values with 0
     base_news_count = 10
-    news_counts = np.random.poisson(
-        base_news_count * (1 + volatility_factor), num_days
-    )
+    # Clip lambda parameter to avoid overflow
+    lambda_values = np.clip(base_news_count * (1 + volatility_factor), 0, 100)
+    news_counts = np.random.poisson(lambda_values.values)
     
     # Create sentiment DataFrame
     sentiment_df = pd.DataFrame({

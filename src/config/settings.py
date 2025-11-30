@@ -23,13 +23,13 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
 # ==============================================================================
 # ETF Tickers Configuration
 # ==============================================================================
-TICKERS: List[str] = ["QQQ", "SPY", "IWM"]
+TICKERS: List[str] = ["QQQ"]  # Focus on QQQ for real data collection
 
 # ==============================================================================
 # Date Range Configuration
 # ==============================================================================
-START_DATE: str = "2020-01-01"
-END_DATE: str = "2023-12-31"
+START_DATE: str = "2015-01-01"  # Extended range for more training data
+END_DATE: str = "2024-12-31"  # Up to present
 
 # ==============================================================================
 # Directory Paths
@@ -82,16 +82,16 @@ TECHNICAL_INDICATORS = {
 SENTIMENT_CONFIG = {
     "sources": ["news", "reddit", "twitter"],  # Future data sources
     "lookback_days": 7,  # Days to aggregate sentiment
-    "min_news_count": 1,  # Minimum news articles for valid sentiment
+    "min_news_count": 3,  # Minimum news articles for valid sentiment
 }
 
 # ==============================================================================
 # Feature Engineering Configuration
 # ==============================================================================
 FEATURE_CONFIG = {
-    "target_column": "target",  # Binary: 1 if price up next day, 0 otherwise
+    "target_column": "target",  # Binary: 1 if price up, 0 otherwise
     "lookback_periods": [1, 3, 5, 10],  # Periods for lagged features
-    "forward_period": 1,  # Days forward for target calculation
+    "forward_period": 5,  # Days forward for target calculation (5 = ~1 week)
     "train_test_split": 0.8,  # 80% train, 20% test
 }
 
@@ -119,6 +119,10 @@ REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "ETF_Sentiment_Bot/1.0")
 TWITTER_BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN", "")
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "")
+
+# GDELT API Configuration
+GDELT_API_KEY = os.getenv("GDELT_API_KEY", "")  # Optional - GDELT is free but rate-limited
+GDELT_BASE_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 # ==============================================================================
 # Logging Configuration
