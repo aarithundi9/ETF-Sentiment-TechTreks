@@ -324,7 +324,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 👥 Authors
 
-- **Aari Thundi** - [aarithundi9](https://github.com/aarithundi9)
+- **Aarit Hundi** - [aarithundi9](https://github.com/aarithundi9)
 
 ## 🙏 Acknowledgments
 
