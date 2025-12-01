@@ -32,9 +32,9 @@ wheels/
 *.ipynb_checkpoints
 
 # Data files
-data/raw/*.csv
-data/interim/*.csv
-data/processed/*.csv
+#data/raw/*.csv
+#data/interim/*.csv
+#data/processed/*.csv
 data/*.db
 data/*.sqlite
 data/*.sqlite3
