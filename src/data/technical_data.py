@@ -38,7 +38,8 @@ class TechnicalDataFetcher:
         Initialize the data fetcher.
         
         Args:
-            source: Data source type ('mock', 'yfinance', 'csv', 'db')
+            source: Data source type ('mock', 'real', 'yfinance', 'csv', 'db')
+                   'real' loads from data/raw/yfinance_prices.csv
         """
         self.source = source
     
@@ -65,6 +66,8 @@ class TechnicalDataFetcher:
         
         if self.source == "mock":
             return self._fetch_mock_data()
+        elif self.source == "real":
+            return self._fetch_real_data(tickers, start_date, end_date)
         elif self.source == "yfinance":
             return self._fetch_yfinance_data(tickers, start_date, end_date)
         elif self.source == "csv":
@@ -77,6 +80,31 @@ class TechnicalDataFetcher:
         from src.data.mock_data_generator import load_mock_data
         prices_df, _ = load_mock_data()
         return prices_df
+    
+    def _fetch_real_data(
+        self,
+        tickers: List[str],
+        start_date: str,
+        end_date: str,
+    ) -> pd.DataFrame:
+        """Load real price data from yfinance CSV."""
+        from src.config.settings import RAW_DATA_DIR
+        
+        csv_path = RAW_DATA_DIR / "yfinance_prices.csv"
+        if not csv_path.exists():
+            raise FileNotFoundError(
+                f"Real price data not found at {csv_path}. "
+                "Run: python collect_real_data.py --price-only"
+            )
+        
+        df = pd.read_csv(csv_path)
+        df['date'] = pd.to_datetime(df['date'])
+        
+        # Filter by tickers and date range
+        df = df[df['ticker'].isin(tickers)]
+        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+        
+        return df.reset_index(drop=True)
     
     def _fetch_yfinance_data(
         self,

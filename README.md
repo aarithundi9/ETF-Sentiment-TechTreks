@@ -24,7 +24,7 @@ This project provides a **production-ready framework** for ETF price movement pr
 
 ## 🚀 Quick Start
 
-### 1. Installation
+### Installation
 
 ```powershell
 # Clone the repository
@@ -39,36 +39,31 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 2. Generate Mock Data
+### Option 1: Mock Data (Development/Testing)
+
+Perfect for testing the pipeline without API keys or waiting for data downloads.
 
 ```powershell
-# Generate mock price and sentiment data
-python src/data/mock_data_generator.py
+# Generate mock data
+python main.py generate
+
+# Train a model
+python main.py train
 ```
 
-This creates:
-- `data/raw/mock_prices.csv` - Historical OHLCV data (~2 years)
-- `data/raw/mock_sentiment.csv` - Daily sentiment scores
+### Option 2: Real Data (Production)
 
-### 3. Run the Complete Pipeline
+Uses actual market data from Yahoo Finance and GDELT news.
 
 ```powershell
-# Run feature engineering pipeline
-python src/features/build_features.py
+# Step 1: Collect real data (one time, or to update)
+python collect_real_data.py --ticker QQQ --start 2015-01-01 --end 2024-12-31
 
-# Train a baseline model
-python src/models/train_model.py
+# Step 2: Train with real data
+python main.py train --use-real-data
 ```
 
-### 4. Explore in Jupyter
-
-```powershell
-# Start Jupyter
-jupyter notebook
-
-# Open the exploration notebook
-# notebooks/exploration_mock_data.ipynb
-```
+**📖 For detailed usage instructions, see [USAGE_GUIDE.md](USAGE_GUIDE.md)**
 
 ## 📁 Project Structure
 
@@ -141,6 +136,18 @@ TWITTER_BEARER_TOKEN=your_token
 
 ## 📊 Features
 
+### Data Sources
+
+**Mock Data (Development):**
+- Geometric Brownian Motion for realistic price movements
+- Correlated sentiment scores based on volatility
+- Perfect for testing and development
+
+**Real Data (Production):**
+- **yfinance**: Historical OHLCV data from Yahoo Finance (free, no API key)
+- **GDELT**: Global news articles and sentiment (free, no API key)
+- **Reddit**: Social media sentiment (optional, requires API credentials)
+
 ### Technical Indicators
 
 - **Moving Averages**: SMA (5, 10, 20, 50), EMA (12, 26)
@@ -187,30 +194,56 @@ class ETFPricePredictor:
 
 ## 📈 Usage Examples
 
-### Generate Mock Data
+### CLI Commands
 
-```python
-from src.data.mock_data_generator import generate_all_mock_data
+```powershell
+# Generate mock data
+python main.py generate
 
-prices_df, sentiment_df = generate_all_mock_data(save=True, verbose=True)
-print(f"Generated {len(prices_df)} price records")
+# Run feature engineering pipeline (mock data)
+python main.py pipeline
+
+# Run feature engineering pipeline (real data)
+python main.py pipeline --use-real-data
+
+# Train model with mock data
+python main.py train
+
+# Train model with real data
+python main.py train --use-real-data
+
+# Show configuration
+python main.py config
 ```
 
-### Load Real Data (When Ready)
+### Reproducibility for Different Tickers
 
-```python
-from src.data.technical_data import TechnicalDataFetcher
+The pipeline works with any ticker symbol:
 
-# Uncomment yfinance code in technical_data.py first
-fetcher = TechnicalDataFetcher(source="yfinance")
-prices_df = fetcher.fetch_ohlcv(
-    tickers=["QQQ", "SPY"],
-    start_date="2023-01-01",
-    end_date="2023-12-31"
-)
+```powershell
+# Collect data for SPY
+python collect_real_data.py --ticker SPY --start 2015-01-01 --end 2024-12-31
+
+# Update config to use SPY
+# Edit src/config/settings.py: TICKERS = ["SPY"]
+
+# Train model
+python main.py train --use-real-data
 ```
 
-### Add User CSV Data
+### Python API
+
+```python
+from src.features.build_features import create_feature_pipeline
+from src.models.train_model import train_baseline_model
+
+# Run pipeline with real data
+df = create_feature_pipeline(use_mock_data=False)
+
+# Train and evaluate
+X_train, X_test, y_train, y_test = prepare_train_test_split(df)
+model, metrics = train_baseline_model(X_train, y_train, X_test, y_test)
+```
 
 Place your CSV files in `data/raw/`:
 

@@ -37,7 +37,7 @@ def run_pipeline(args):
     print("=" * 80)
     
     df = create_feature_pipeline(
-        use_mock_data=True,
+        use_mock_data=not args.use_real_data,
         save_interim=True,
     )
     
@@ -54,7 +54,7 @@ def train_model(args):
     
     # Run pipeline if needed
     print("\n[1/3] Running feature engineering...")
-    df = create_feature_pipeline(use_mock_data=True, save_interim=True)
+    df = create_feature_pipeline(use_mock_data=not args.use_real_data, save_interim=True)
     
     # Prepare data
     print("\n[2/3] Preparing train/test split...")
@@ -87,10 +87,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py generate        # Generate mock data
-  python main.py pipeline        # Run feature engineering
-  python main.py train           # Train a model (includes pipeline)
-  python main.py config          # Show configuration
+  python main.py generate              # Generate mock data
+  python main.py pipeline              # Run feature engineering (mock data)
+  python main.py pipeline --use-real-data  # Run with real data
+  python main.py train                 # Train a model (mock data)
+  python main.py train --use-real-data # Train with real data
+  python main.py config                # Show configuration
         """
     )
     
@@ -108,12 +110,22 @@ Examples:
         'pipeline',
         help='Run feature engineering pipeline'
     )
+    parser_pipeline.add_argument(
+        '--use-real-data',
+        action='store_true',
+        help='Use real data instead of mock data'
+    )
     parser_pipeline.set_defaults(func=run_pipeline)
     
     # Train model command
     parser_train = subparsers.add_parser(
         'train',
         help='Train a model'
+    )
+    parser_train.add_argument(
+        '--use-real-data',
+        action='store_true',
+        help='Use real data instead of mock data'
     )
     parser_train.set_defaults(func=train_model)
     

@@ -157,7 +157,7 @@ def create_feature_pipeline(
     
     # Step 1: Load price data
     print("\n[1/7] Loading price data...")
-    source = "mock" if use_mock_data else "yfinance"
+    source = "mock" if use_mock_data else "real"
     price_fetcher = TechnicalDataFetcher(source=source)
     price_df = price_fetcher.fetch_ohlcv()
     print(f"✓ Loaded {len(price_df)} price records")

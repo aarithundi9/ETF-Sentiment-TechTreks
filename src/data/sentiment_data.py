@@ -48,7 +48,8 @@ class SentimentDataFetcher:
         Initialize the sentiment fetcher.
         
         Args:
-            source: Data source type ('mock', 'news', 'reddit', 'twitter', 'csv')
+            source: Data source type ('mock', 'real', 'news', 'reddit', 'twitter', 'csv')
+                   'real' loads from data/raw/gdelt_sentiment_{ticker}.csv
             sentiment_analyzer: Sentiment analysis tool ('vader' or 'textblob')
         """
         self.source = source
@@ -87,6 +88,8 @@ class SentimentDataFetcher:
         
         if self.source == "mock":
             return self._fetch_mock_sentiment()
+        elif self.source == "real":
+            return self._fetch_real_sentiment(tickers, start_date, end_date)
         elif self.source == "news":
             return self._fetch_news_sentiment(tickers, start_date, end_date)
         elif self.source == "reddit":
@@ -103,6 +106,38 @@ class SentimentDataFetcher:
         from src.data.mock_data_generator import load_mock_data
         _, sentiment_df = load_mock_data()
         return sentiment_df
+    
+    def _fetch_real_sentiment(
+        self,
+        tickers: List[str],
+        start_date: str,
+        end_date: str,
+    ) -> pd.DataFrame:
+        """Load real sentiment data from GDELT CSV files."""
+        from src.config.settings import RAW_DATA_DIR
+        
+        all_data = []
+        for ticker in tickers:
+            csv_path = RAW_DATA_DIR / f"gdelt_sentiment_{ticker}.csv"
+            if not csv_path.exists():
+                print(f"Warning: GDELT sentiment not found for {ticker} at {csv_path}")
+                print(f"  Run: python collect_real_data.py --ticker {ticker} --no-price")
+                continue
+            
+            df = pd.read_csv(csv_path)
+            df['date'] = pd.to_datetime(df['date'])
+            
+            # Filter by date range
+            df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+            
+            all_data.append(df)
+        
+        if not all_data:
+            raise FileNotFoundError(
+                f"No GDELT sentiment data found for any ticker: {tickers}"
+            )
+        
+        return pd.concat(all_data, ignore_index=True)
     
     def _fetch_news_sentiment(
         self,
