@@ -90,6 +90,7 @@ SENTIMENT_CONFIG = {
 # ==============================================================================
 FEATURE_CONFIG = {
     "target_column": "target",  # Binary: 1 if price up, 0 otherwise
+    "target_type": "binary",  # "binary" for classification (up/down) or "continuous" for regression (actual return %)
     "lookback_periods": [1, 3, 5, 10],  # Periods for lagged features
     "forward_period": 5,  # Days forward for target calculation (5 = ~1 week)
     "train_test_split": 0.8,  # 80% train, 20% test

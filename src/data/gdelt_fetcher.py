@@ -53,7 +53,7 @@ class GDELTFetcher:
                     all_articles.extend(articles)
                     print(f"  {current_date.date()}: {len(articles)} articles")
                 
-                # Rate limiting - be nice to GDELT
+                # Rate limiting - be nice to GDELT (2 seconds to avoid rate limits)
                 time.sleep(0.5)
                 
                 current_date += timedelta(days=1)
