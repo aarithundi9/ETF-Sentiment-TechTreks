@@ -1,0 +1,22 @@
+============================================================
+Multi-Horizon Model Report: QQQ
+============================================================
+
+5D Horizon Performance:
+  Samples:           368
+  MAE:               0.020885
+  RMSE:              0.026221
+  Directional Acc:   51.09%
+
+1M Horizon Performance:
+  Samples:           368
+  MAE:               0.031821
+  RMSE:              0.040583
+  Directional Acc:   73.37%
+
+----------------------------------------
+Aggregate Metrics:
+  Mean MAE:          0.026353
+  Mean RMSE:         0.033402
+  Mean Dir. Acc:     62.23%
+============================================================

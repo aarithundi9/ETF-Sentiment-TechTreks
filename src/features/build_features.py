@@ -28,6 +28,173 @@ from src.data.technical_data import TechnicalDataFetcher, add_all_technical_indi
 from src.data.sentiment_data import SentimentDataFetcher, calculate_sentiment_features
 
 
+# ==============================================================================
+# Multi-Horizon Target Construction
+# ==============================================================================
+
+def make_multi_horizon_targets(
+    df: pd.DataFrame,
+    horizons: dict = None,
+    target_type: str = "return",
+    price_col: str = "close",
+) -> pd.DataFrame:
+    """
+    Create multi-horizon target columns for price prediction.
+    
+    Args:
+        df: DataFrame with price data (must have 'close' column and be sorted by date)
+        horizons: Dict mapping horizon name to days, e.g., {"5d": 5, "1m": 21}
+                  If None, uses MULTI_HORIZON_CONFIG["horizons"]
+        target_type: 'return' (percentage change) or 'price_change' (absolute)
+        price_col: Column name for price data
+        
+    Returns:
+        DataFrame with added target columns:
+        - target_5d: 5-day ahead return/change
+        - target_1m: 1-month ahead return/change
+        
+    Example:
+        >>> df = make_multi_horizon_targets(df, horizons={"5d": 5, "1m": 21})
+        >>> # Now df has 'target_5d' and 'target_1m' columns
+    """
+    from src.config.settings import MULTI_HORIZON_CONFIG
+    
+    df = df.copy()
+    
+    # Use default horizons if not provided
+    if horizons is None:
+        horizons = MULTI_HORIZON_CONFIG["horizons"]
+    
+    if target_type is None:
+        target_type = MULTI_HORIZON_CONFIG.get("target_type", "return")
+    
+    # Ensure sorted by date within each ticker
+    if "ticker" in df.columns:
+        df = df.sort_values(["ticker", "date"]).reset_index(drop=True)
+    else:
+        df = df.sort_values("date").reset_index(drop=True)
+    
+    for horizon_name, horizon_days in horizons.items():
+        target_col = f"target_{horizon_name}"
+        
+        if "ticker" in df.columns:
+            # Multi-ticker: compute per ticker
+            if target_type == "return":
+                # Percentage return: (future_price - current_price) / current_price
+                df[target_col] = df.groupby("ticker")[price_col].transform(
+                    lambda x: x.pct_change(periods=horizon_days).shift(-horizon_days)
+                )
+            else:  # price_change
+                # Absolute price change: future_price - current_price
+                df[target_col] = df.groupby("ticker")[price_col].transform(
+                    lambda x: x.diff(periods=horizon_days).shift(-horizon_days)
+                )
+        else:
+            # Single ticker
+            if target_type == "return":
+                df[target_col] = df[price_col].pct_change(periods=horizon_days).shift(-horizon_days)
+            else:
+                df[target_col] = df[price_col].diff(periods=horizon_days).shift(-horizon_days)
+    
+    return df
+
+
+def prepare_multi_horizon_sequences(
+    df: pd.DataFrame,
+    feature_cols: List[str],
+    target_cols: List[str],
+    sequence_length: int = 20,
+    split_ratio: float = 0.8,
+    val_ratio: float = 0.15,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Prepare sequential data for LSTM/temporal models with multi-horizon targets.
+    
+    Creates sequences of features for each prediction, respecting time ordering.
+    
+    Args:
+        df: DataFrame with features and multi-horizon targets
+        feature_cols: List of feature column names
+        target_cols: List of target column names (e.g., ['target_5d', 'target_1m'])
+        sequence_length: Number of time steps in each input sequence
+        split_ratio: Train/test split ratio
+        val_ratio: Validation ratio (from training portion)
+        
+    Returns:
+        Tuple of (X_train, X_val, X_test, y_train, y_val, y_test)
+        - X arrays have shape (n_samples, sequence_length, n_features)
+        - y arrays have shape (n_samples, n_horizons)
+    """
+    # Ensure sorted by date
+    df = df.sort_values("date").reset_index(drop=True)
+    
+    # Drop rows with NaN in features or targets
+    cols_to_check = feature_cols + target_cols
+    df = df.dropna(subset=[col for col in cols_to_check if col in df.columns])
+    
+    # Extract feature and target arrays
+    X_data = df[feature_cols].values
+    y_data = df[target_cols].values
+    
+    # Create sequences
+    X_sequences = []
+    y_sequences = []
+    
+    for i in range(len(df) - sequence_length):
+        X_sequences.append(X_data[i:i + sequence_length])
+        y_sequences.append(y_data[i + sequence_length - 1])  # Target at end of sequence
+    
+    X = np.array(X_sequences)
+    y = np.array(y_sequences)
+    
+    # Time-based split
+    total_samples = len(X)
+    train_end = int(total_samples * split_ratio * (1 - val_ratio))
+    val_end = int(total_samples * split_ratio)
+    
+    X_train = X[:train_end]
+    y_train = y[:train_end]
+    
+    X_val = X[train_end:val_end]
+    y_val = y[train_end:val_end]
+    
+    X_test = X[val_end:]
+    y_test = y[val_end:]
+    
+    print(f"Sequence preparation complete:")
+    print(f"  Sequence length: {sequence_length}")
+    print(f"  Features: {len(feature_cols)}")
+    print(f"  Horizons: {len(target_cols)}")
+    print(f"  Train: {len(X_train)} sequences")
+    print(f"  Val:   {len(X_val)} sequences")
+    print(f"  Test:  {len(X_test)} sequences")
+    
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def load_ticker_dataset(ticker: str) -> pd.DataFrame:
+    """
+    Load a processed ticker dataset from the data/processed directory.
+    
+    Args:
+        ticker: Ticker symbol (e.g., 'QQQ', 'XLY')
+        
+    Returns:
+        DataFrame with all features and original targets
+    """
+    filepath = PROCESSED_DATA_DIR / f"{ticker}total.csv"
+    if not filepath.exists():
+        raise FileNotFoundError(f"Dataset not found: {filepath}")
+    
+    df = pd.read_csv(filepath)
+    df['date'] = pd.to_datetime(df['date'])
+    
+    print(f"✓ Loaded {ticker} dataset: {len(df)} rows, {len(df.columns)} columns")
+    print(f"  Date range: {df['date'].min().date()} to {df['date'].max().date()}")
+    
+    return df
+
+
 def merge_price_and_sentiment(
     price_df: pd.DataFrame,
     sentiment_df: pd.DataFrame,

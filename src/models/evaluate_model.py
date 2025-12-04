@@ -25,6 +25,8 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
     classification_report,
+    mean_absolute_error,
+    mean_squared_error,
 )
 
 
@@ -254,6 +256,309 @@ def calculate_trading_performance(
 
 if __name__ == "__main__":
     # Example evaluation
+    print("=" * 80)
+    print("Model Evaluation Example")
+    print("=" * 80)
+
+
+# ==============================================================================
+# Multi-Horizon Regression Evaluation
+# ==============================================================================
+
+def evaluate_multi_horizon(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    horizon_names: list = None,
+    verbose: bool = True,
+) -> Dict[str, Any]:
+    """
+    Evaluate multi-horizon regression predictions.
+    
+    Calculates per-horizon metrics:
+    - MAE: Mean Absolute Error
+    - MSE: Mean Squared Error
+    - RMSE: Root Mean Squared Error
+    - Directional Accuracy: % of correctly predicted direction
+    
+    Args:
+        y_true: Actual values, shape (n_samples, n_horizons)
+        y_pred: Predicted values, shape (n_samples, n_horizons)
+        horizon_names: Names for each horizon (e.g., ['5d', '1m'])
+        verbose: Whether to print results
+        
+    Returns:
+        Dictionary with metrics for each horizon and aggregate metrics
+    """
+    if horizon_names is None:
+        horizon_names = ['5d', '1m']
+    
+    n_horizons = y_true.shape[1] if len(y_true.shape) > 1 else 1
+    
+    # Handle single horizon case
+    if n_horizons == 1:
+        y_true = y_true.reshape(-1, 1)
+        y_pred = y_pred.reshape(-1, 1)
+    
+    metrics = {
+        'horizons': {},
+        'aggregate': {},
+    }
+    
+    all_mae = []
+    all_rmse = []
+    all_dir_acc = []
+    
+    for i, horizon in enumerate(horizon_names[:n_horizons]):
+        true_i = y_true[:, i]
+        pred_i = y_pred[:, i]
+        
+        # Filter out NaN values
+        mask = ~np.isnan(true_i) & ~np.isnan(pred_i)
+        true_i = true_i[mask]
+        pred_i = pred_i[mask]
+        
+        # Regression metrics
+        mae = mean_absolute_error(true_i, pred_i)
+        mse = mean_squared_error(true_i, pred_i)
+        rmse = np.sqrt(mse)
+        
+        # Directional accuracy (correct sign prediction)
+        direction_true = np.sign(true_i)
+        direction_pred = np.sign(pred_i)
+        dir_accuracy = np.mean(direction_true == direction_pred)
+        
+        # Store metrics
+        metrics['horizons'][horizon] = {
+            'mae': mae,
+            'mse': mse,
+            'rmse': rmse,
+            'directional_accuracy': dir_accuracy,
+            'n_samples': len(true_i),
+        }
+        
+        all_mae.append(mae)
+        all_rmse.append(rmse)
+        all_dir_acc.append(dir_accuracy)
+    
+    # Aggregate metrics
+    metrics['aggregate'] = {
+        'mean_mae': np.mean(all_mae),
+        'mean_rmse': np.mean(all_rmse),
+        'mean_directional_accuracy': np.mean(all_dir_acc),
+    }
+    
+    if verbose:
+        print("\n" + "=" * 70)
+        print("Multi-Horizon Regression Evaluation")
+        print("=" * 70)
+        
+        for horizon, m in metrics['horizons'].items():
+            print(f"\n{horizon.upper()} Horizon ({m['n_samples']} samples):")
+            print(f"  MAE:                 {m['mae']:.6f}")
+            print(f"  RMSE:                {m['rmse']:.6f}")
+            print(f"  Directional Acc:     {m['directional_accuracy']:.2%}")
+        
+        print(f"\n{'─'*40}")
+        print(f"Aggregate (Average across horizons):")
+        print(f"  Mean MAE:            {metrics['aggregate']['mean_mae']:.6f}")
+        print(f"  Mean RMSE:           {metrics['aggregate']['mean_rmse']:.6f}")
+        print(f"  Mean Directional:    {metrics['aggregate']['mean_directional_accuracy']:.2%}")
+    
+    return metrics
+
+
+def evaluate_multi_horizon_by_ticker(
+    predictions_dict: Dict[str, Dict[str, np.ndarray]],
+    horizon_names: list = None,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """
+    Evaluate multi-horizon predictions across multiple tickers.
+    
+    Args:
+        predictions_dict: Dict of ticker -> {'y_true': array, 'y_pred': array}
+        horizon_names: Names for each horizon
+        verbose: Print results
+        
+    Returns:
+        DataFrame with per-ticker, per-horizon metrics
+    """
+    if horizon_names is None:
+        horizon_names = ['5d', '1m']
+    
+    results = []
+    
+    for ticker, data in predictions_dict.items():
+        y_true = data['y_true']
+        y_pred = data['y_pred']
+        
+        ticker_metrics = evaluate_multi_horizon(
+            y_true, y_pred, horizon_names, verbose=False
+        )
+        
+        for horizon, m in ticker_metrics['horizons'].items():
+            results.append({
+                'ticker': ticker,
+                'horizon': horizon,
+                'mae': m['mae'],
+                'rmse': m['rmse'],
+                'directional_accuracy': m['directional_accuracy'],
+                'n_samples': m['n_samples'],
+            })
+    
+    df = pd.DataFrame(results)
+    
+    if verbose:
+        print("\n" + "=" * 70)
+        print("Multi-Horizon Performance by Ticker")
+        print("=" * 70)
+        
+        # Pivot for cleaner display
+        pivot_mae = df.pivot(index='ticker', columns='horizon', values='mae')
+        pivot_dir = df.pivot(index='ticker', columns='horizon', values='directional_accuracy')
+        
+        print("\nMAE by Ticker and Horizon:")
+        print(pivot_mae.round(6).to_string())
+        
+        print("\nDirectional Accuracy by Ticker and Horizon:")
+        print((pivot_dir * 100).round(2).to_string() + " (%)")
+    
+    return df
+
+
+def plot_multi_horizon_predictions(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    horizon_names: list = None,
+    dates: pd.Series = None,
+    title: str = "Multi-Horizon Predictions",
+    save_path: str = None,
+):
+    """
+    Plot actual vs predicted values for each horizon.
+    
+    Args:
+        y_true: Actual values (n_samples, n_horizons)
+        y_pred: Predicted values (n_samples, n_horizons)
+        horizon_names: Names for each horizon
+        dates: Optional date series for x-axis
+        title: Plot title
+        save_path: Path to save figure (optional)
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("matplotlib not installed, skipping plot")
+        return
+    
+    if horizon_names is None:
+        horizon_names = ['5d', '1m']
+    
+    n_horizons = y_true.shape[1] if len(y_true.shape) > 1 else 1
+    
+    fig, axes = plt.subplots(n_horizons, 2, figsize=(14, 5 * n_horizons))
+    
+    if n_horizons == 1:
+        axes = axes.reshape(1, -1)
+    
+    for i, horizon in enumerate(horizon_names[:n_horizons]):
+        true_i = y_true[:, i]
+        pred_i = y_pred[:, i]
+        
+        # Time series plot
+        ax1 = axes[i, 0]
+        x_axis = dates if dates is not None else range(len(true_i))
+        ax1.plot(x_axis, true_i, label='Actual', alpha=0.7)
+        ax1.plot(x_axis, pred_i, label='Predicted', alpha=0.7)
+        ax1.set_title(f'{horizon.upper()} Horizon - Time Series')
+        ax1.set_xlabel('Date' if dates is not None else 'Sample')
+        ax1.set_ylabel('Return')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Scatter plot (actual vs predicted)
+        ax2 = axes[i, 1]
+        ax2.scatter(true_i, pred_i, alpha=0.5, s=10)
+        
+        # Perfect prediction line
+        min_val = min(true_i.min(), pred_i.min())
+        max_val = max(true_i.max(), pred_i.max())
+        ax2.plot([min_val, max_val], [min_val, max_val], 'r--', label='Perfect')
+        
+        ax2.set_title(f'{horizon.upper()} Horizon - Actual vs Predicted')
+        ax2.set_xlabel('Actual Return')
+        ax2.set_ylabel('Predicted Return')
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+    
+    plt.suptitle(title, fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f"Figure saved to {save_path}")
+    
+    plt.show()
+
+
+def create_multi_horizon_report(
+    metrics: Dict[str, Any],
+    ticker: str,
+    save_path: str = None,
+) -> str:
+    """
+    Create a text report of multi-horizon model performance.
+    
+    Args:
+        metrics: Output from evaluate_multi_horizon()
+        ticker: Ticker symbol
+        save_path: Optional path to save report
+        
+    Returns:
+        Report string
+    """
+    lines = [
+        "=" * 60,
+        f"Multi-Horizon Model Report: {ticker}",
+        "=" * 60,
+        "",
+    ]
+    
+    for horizon, m in metrics['horizons'].items():
+        lines.extend([
+            f"{horizon.upper()} Horizon Performance:",
+            f"  Samples:           {m['n_samples']:,}",
+            f"  MAE:               {m['mae']:.6f}",
+            f"  RMSE:              {m['rmse']:.6f}",
+            f"  Directional Acc:   {m['directional_accuracy']:.2%}",
+            "",
+        ])
+    
+    lines.extend([
+        "-" * 40,
+        "Aggregate Metrics:",
+        f"  Mean MAE:          {metrics['aggregate']['mean_mae']:.6f}",
+        f"  Mean RMSE:         {metrics['aggregate']['mean_rmse']:.6f}",
+        f"  Mean Dir. Acc:     {metrics['aggregate']['mean_directional_accuracy']:.2%}",
+        "=" * 60,
+    ])
+    
+    report = "\n".join(lines)
+    
+    if save_path:
+        with open(save_path, 'w') as f:
+            f.write(report)
+        print(f"Report saved to {save_path}")
+    
+    return report
+
+
+# ==============================================================================
+# Main Execution
+# ==============================================================================
+
+if __name__ == "__main__":
+    # Example classification evaluation
     print("=" * 80)
     print("Model Evaluation Example")
     print("=" * 80)

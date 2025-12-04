@@ -111,6 +111,50 @@ MODEL_CONFIG = {
 }
 
 # ==============================================================================
+# Multi-Horizon Model Configuration
+# ==============================================================================
+MULTI_HORIZON_CONFIG = {
+    # Prediction horizons (in trading days)
+    # 5 days ≈ 1 week, 21 days ≈ 1 month
+    "horizons": {
+        "5d": 5,      # 5-day ahead prediction
+        "1m": 21,     # 1-month ahead prediction
+    },
+    
+    # Target type: 'return' (percentage change) or 'price_change' (absolute)
+    "target_type": "return",
+    
+    # Model architecture
+    "model": {
+        "hidden_size": 64,          # LSTM hidden dimension
+        "num_layers": 2,            # Number of LSTM layers
+        "dropout": 0.2,             # Dropout rate
+        "bidirectional": False,     # Use bidirectional LSTM
+        "sequence_length": 20,      # Number of past days to use as input
+    },
+    
+    # Training parameters
+    "training": {
+        "batch_size": 32,
+        "epochs": 100,
+        "learning_rate": 0.001,
+        "weight_decay": 1e-5,
+        "early_stopping_patience": 10,
+        "lr_scheduler_patience": 5,
+        "lr_scheduler_factor": 0.5,
+    },
+    
+    # Loss weights for each horizon (can be tuned)
+    "loss_weights": {
+        "5d": 1.0,
+        "1m": 1.0,
+    },
+    
+    # Validation split ratio (from training data)
+    "val_split": 0.15,
+}
+
+# ==============================================================================
 # API Keys (from environment variables)
 # ==============================================================================
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
