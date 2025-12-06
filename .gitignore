@@ -65,3 +65,11 @@ models/*.joblib
 # Logs
 *.log
 logs/
+
+# Trained models (large HF/BERT artifacts)
+notebooks/sentiment_score_*/
+sentiment_score_*/
+**/sentiment_score_*/
+*.bin
+*.pt
+*.ckpt
